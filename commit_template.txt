@@ -1,0 +1,5 @@
+#<ID> : <Comment>
+#Please follow above commit format
+#ID : Mandatory, ticket id
+#Comment : Optional, ticket subject from portal will be taken as comment otherwise.
+#Solution article link : <link>
