@@ -30,7 +30,7 @@ class GitHooksIntegrationPush
     end
 
     def process_commits
-      commits = %x(git log origin/master..HEAD --pretty=format:%H)
+      commits = %x(git log @{u}..HEAD --pretty=format:%H)
       commits.split(" ").each do |sha|
         @m_author = %x(git show -s --format=%an #{sha})
         m_comment = %x(git show -s --format=%s #{sha})
@@ -40,7 +40,7 @@ class GitHooksIntegrationPush
           commit_url = REPO_URL + sha
 
           find_monitored_files m_files
-          update_commit_sha commit_url
+          update_commit_sha commit_url, m_comment
         else
           # assuming commit message was one of the ALLOWED_FORMATS
           break
@@ -59,13 +59,15 @@ class GitHooksIntegrationPush
       end
     end
 
-    def update_commit_sha(commit_url)
+    def update_commit_sha(commit_url, commit_msg)
 
       data = {
         "helpdesk_note[private]" => true,
         "helpdesk_note[body]" => "Note added from git hooks.",
         "helpdesk_note[body_html]" => "<div style='font-size: 13px; font-family: Helvetica Neue, Helvetica, Arial, sans-serif;'><p><b>
           Commit Details&nbsp;</b></p><p><b><br></b></p><p style='margin-bottom:15px;'><span>Author : #{@m_author}</span></p>
+          <p style='margin-bottom:15px;'>
+          <span>Message : #{commit_msg}</span></p>
           <p style='margin-bottom:15px;'>
           <span>URL : #{commit_url}</span></p>
           <p><br></p><p><br></p></div>"
