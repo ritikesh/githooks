@@ -10,6 +10,7 @@ class GitHooksIntegrationPush
 
   MONITORED_FILE_EXTENSIONS = [[".scss", ".js"], ["db/migrate"]]
   MONITORS =['user1@freshdesk.com', 'user2@freshdesk.com']
+  ID_REGEX = /^(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
 
   # Place your api key here
   API_KEY = "YOUR_API_KEY"
@@ -25,8 +26,22 @@ class GitHooksIntegrationPush
       "Basic #{Base64.encode64(API_KEY).dump.gsub("\"","")}"
     end
 
-    def note_url(id = @id)
+    def note_url(id = 0)
       "#{ACCOUNT_URL}/helpdesk/tickets/#{id}/conversations/note.json"
+    end
+
+    def str_presence(obj)
+      obj.respond_to?(:empty?) ? obj.gsub(" ","") : ""
+    end
+
+    def get_commit_ids(message)
+      match_data = message.match(ID_REGEX)
+      exit(0) if match_data.nil? # assuming commit message was one of the ALLOWED_FORMATS
+      ids = [match_data[1]]
+      str_presence(match_data[2]).split(",").each { |id|
+        ids.push id unless id.empty?
+      }
+      ids
     end
 
     def process_commits
@@ -34,32 +49,30 @@ class GitHooksIntegrationPush
       commits.split(" ").each do |sha|
         @m_author = %x(git show -s --format=%an #{sha})
         m_comment = %x(git show -s --format=%s #{sha})
-        @id = m_comment.gsub(/^(\d+)/).first
-        if @id
-          m_files = %x(git diff-tree --no-commit-id --name-only -r #{sha}).split(" ")
-          commit_url = REPO_URL + sha
+        ticket_ids = get_commit_ids m_comment
+        m_files = %x(git diff-tree --no-commit-id --name-only -r #{sha}).split(" ")
+        commit_url = REPO_URL + sha
+        monitors = find_monitors m_files
+        data = note_data commit_url, m_comment, monitors
 
-          find_monitored_files m_files
-          update_commit_sha commit_url, m_comment
-        else
-          # assuming commit message was one of the ALLOWED_FORMATS
-          break
-        end
+        ticket_ids.each { |id|
+          add_note data, id
+        }
       end
       exit 0
     end
 
-    def find_monitored_files(files)
-      @monitors = []
-      ui_checked, db_checked = false, false
+    def find_monitors(files)
+      monitors, ui_checked, db_checked = [], false, false
       files.each do |file|
-        ui_checked || @monitors << MONITORS[0] && ui_checked = true if MONITORED_FILE_EXTENSIONS[0].include? File.extname(file)
-        db_checked || @monitors << MONITORS[1] && db_checked = true if MONITORED_FILE_EXTENSIONS[1].include? File.dirname(file)
+        ui_checked || monitors << MONITORS[0] && ui_checked = true if MONITORED_FILE_EXTENSIONS[0].include? File.extname(file)
+        db_checked || monitors << MONITORS[1] && db_checked = true if MONITORED_FILE_EXTENSIONS[1].include? File.dirname(file)
         ui_checked && db_checked && break
       end
+      monitors
     end
 
-    def update_commit_sha(commit_url, commit_msg)
+    def note_data(commit_url, commit_msg, monitors)
 
       data = {
         "helpdesk_note[private]" => true,
@@ -73,12 +86,11 @@ class GitHooksIntegrationPush
           <p><br></p><p><br></p></div>"
       }
 
-      data.merge!("helpdesk_note[to_emails]" => @monitors.to_s) if @monitors
-      add_note data
+      monitors[0] ? data.merge!("helpdesk_note[to_emails]" => monitors.to_s) : data
     end
 
-    def add_note(data)
-      uri = URI(note_url)
+    def add_note(data, id)
+      uri = URI(note_url(id))
 
       Net::HTTP.start(uri.host, uri.port, :use_ssl => uri.scheme == 'https') do |http|
         request = Net::HTTP::Post.new uri.request_uri
