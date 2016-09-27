@@ -11,6 +11,8 @@ class GitHooksIntegrationPush
   MONITORED_FILE_EXTENSIONS = [[".scss", ".js"], ["db/migrate"]]
   MONITORS =['user1@freshdesk.com', 'user2@freshdesk.com']
   ID_REGEX = /^(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
+  # notes will be pushed to the portal only for branch names included below.
+  UPSTREAM_BRANCHES_TO_CHECK = ['list', 'of', 'upstream', 'branches']
 
   # Place your api key here
   API_KEY = "YOUR_API_KEY"
@@ -36,7 +38,7 @@ class GitHooksIntegrationPush
 
     def get_commit_ids(message)
       match_data = message.match(ID_REGEX)
-      exit(0) if match_data.nil? # assuming commit message was one of the ALLOWED_FORMATS
+      graceful_exit if match_data.nil? # assuming commit message was one of the ALLOWED_FORMATS
       ids = [match_data[1]]
       str_presence(match_data[2]).split(",").each { |id|
         ids.push id unless id.empty?
@@ -44,7 +46,13 @@ class GitHooksIntegrationPush
       ids
     end
 
+    def check_upstream
+      upstream = %x(git rev-parse --abbrev-ref HEAD).chomp
+      graceful_exit unless UPSTREAM_BRANCHES_TO_CHECK.include?(upstream)
+    end
+
     def process_commits
+      check_upstream
       commits = %x(git log @{u}..HEAD --pretty=format:%H)
       commits.split(" ").each do |sha|
         @m_author = %x(git show -s --format=%an #{sha})
@@ -59,7 +67,7 @@ class GitHooksIntegrationPush
           add_note data, id
         }
       end
-      exit 0
+      graceful_exit
     end
 
     def find_monitors(files)
@@ -78,7 +86,7 @@ class GitHooksIntegrationPush
         "helpdesk_note[private]" => true,
         "helpdesk_note[body]" => "Note added from git hooks.",
         "helpdesk_note[body_html]" => "<div style='font-size: 13px; font-family: Helvetica Neue, Helvetica, Arial, sans-serif;'><p><b>
-          Commit Details&nbsp;</b></p><p><b><br></b></p><p style='margin-bottom:15px;'><span>Author : #{@m_author}</span></p>
+          Commit Details</b></p><p><b><br></b></p><p style='margin-bottom:15px;'><span>Author : #{@m_author}</span></p>
           <p style='margin-bottom:15px;'>
           <span>Message : #{commit_msg}</span></p>
           <p style='margin-bottom:15px;'>
@@ -116,6 +124,10 @@ class GitHooksIntegrationPush
     def raise_error str
       puts str
       exit 1
+    end
+
+    def graceful_exit
+      exit 0
     end
   end
 end
