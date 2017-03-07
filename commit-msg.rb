@@ -15,7 +15,7 @@ class GitHooksIntegrationCommit
     "Git Author config error"
   ]
 
-  ID_REGEX = /^(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
+  ID_REGEX = /^(?:Revert ")?(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
   AUTHOR_REGEX = /(?:("?(?:.*)"?)\s)?<(.*@.*)>/
   COMMIT_ALLOWED_STATUS = [1, 2] # Ticket Status IDS
   ALLOWED_FORMATS = [/^Merge (branch|remote-tracking) .+/]
