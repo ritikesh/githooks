@@ -10,7 +10,7 @@ class GitHooksIntegrationPush
 
   MONITORED_FILE_EXTENSIONS = [[".scss", ".js"], ["db/migrate"]]
   MONITORS =['user1@freshdesk.com', 'user2@freshdesk.com']
-  ID_REGEX = /^(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
+  ID_REGEX = /^(?:Revert ")?(\d+)((?:\s*,\s*\d+)*)(?:\s*:\s*([\w\s]+))?/
   # notes will be pushed to the portal only for branch names included below.
   UPSTREAM_BRANCHES_TO_CHECK = ['list', 'of', 'upstream', 'branches']
 
